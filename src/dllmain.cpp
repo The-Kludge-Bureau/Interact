@@ -30,15 +30,29 @@ static uint32_t InteractNearest(void* L)
 
     uint32_t objects = *reinterpret_cast<uint32_t*>(Offsets::VISIBLE_OBJECTS);
     uint32_t currentObject = *reinterpret_cast<uint32_t*>(objects + 0xAC);
-    uint32_t candidate = -1;
+
+    // 修改：为四个优先级创建独立的候选存储
+    struct CandidateInfo {
+        uint64_t guid;
+        uint32_t pointer;  // 对于单位和尸体，存currentObject；对于游戏物体，存GetObjectPointer结果
+        uint32_t type;
+    };
+
+    CandidateInfo candidateLootable = { 0, static_cast<uint32_t>(-1), ObjectType::NONE };
+    CandidateInfo candidateGameObject = { 0, static_cast<uint32_t>(-1), ObjectType::NONE };
+    CandidateInfo candidateSkinnable = { 0, static_cast<uint32_t>(-1), ObjectType::NONE };
+    CandidateInfo candidateAliveUnit = { 0, static_cast<uint32_t>(-1), ObjectType::NONE };
+
+    float bestDistanceLootable = 1000.0f;
+    float bestDistanceGameObject = 1000.0f;
+    float bestDistanceSkinnable = 1000.0f;
+    float bestDistanceAliveUnit = 1000.0f;
 
     uint64_t playerGUID = *reinterpret_cast<uint64_t*>(objects + 0xC0);
     uint32_t player = Game::GetObjectPointer(playerGUID);
 
     C3Vector pPos = Game::GetUnitPosition(player);
     C3Vector oPos;
-
-    float bestDistance = 1000.0f;
 
     while (currentObject != 0 && (currentObject & 1) == 0)
     {
@@ -74,28 +88,44 @@ static uint32_t InteractNearest(void* L)
         }
 
         float distance = distance3D(oPos, pPos);
-        if (distance <= 5.0 && distance < bestDistance)
+        if (distance <= 5.0)
         {
             if (type == ObjectType::UNIT)
             {
-                if (Game::GetUnitHealth(currentObject) == 0 && (Game::IsUnitLootable(currentObject) || Game::IsUnitSkinnable(currentObject)))
+                bool isDead = Game::GetUnitHealth(currentObject) == 0;
+                if (isDead)
                 {
-                    bestDistance = distance;
-                    candidate = currentObject;
+                    bool isLootable = Game::IsUnitLootable(currentObject);
+                    bool isSkinnable = Game::IsUnitSkinnable(currentObject);
+
+                    // 修改：第一优先级 - 可拾取的尸体
+                    if (isLootable && distance < bestDistanceLootable)
+                    {
+                        bestDistanceLootable = distance;
+                        candidateLootable = { guid, currentObject, type };
+                    }
+                    // 修改：第三优先级 - 仅可剥皮但不可拾取的尸体
+                    else if (!isLootable && isSkinnable && distance < bestDistanceSkinnable)
+                    {
+                        bestDistanceSkinnable = distance;
+                        candidateSkinnable = { guid, currentObject, type };
+                    }
                 }
-                else if (Game::GetUnitHealth(currentObject) > 0)
+                else if (Game::GetUnitHealth(currentObject) > 0 && distance < bestDistanceAliveUnit)
                 {
-                    bestDistance = distance;
-                    candidate = currentObject;
+                    // 修改：第四优先级 - 活着的单位
+                    bestDistanceAliveUnit = distance;
+                    candidateAliveUnit = { guid, currentObject, type };
                 }
             }
             else if (type == ObjectType::GAMEOBJECT)
             {
                 uint32_t id = *reinterpret_cast<uint32_t*>(pointer + 0x294);
-                if (!blacklist.count(id))
+                if (!blacklist.count(id) && distance < bestDistanceGameObject)
                 {
-                    bestDistance = distance;
-                    candidate = currentObject;
+                    // 修改：第二优先级 - 游戏物体
+                    bestDistanceGameObject = distance;
+                    candidateGameObject = { guid, pointer, type };
                 }
             }
         }
@@ -103,22 +133,33 @@ static uint32_t InteractNearest(void* L)
         currentObject = *reinterpret_cast<uint32_t*>(currentObject + 0x3C);
     }
 
-    if (candidate == -1) return 0;
+    // 修改：按优先级顺序选择最终候选
+    CandidateInfo finalCandidate = { 0, static_cast<uint32_t>(-1), ObjectType::NONE };
+    if (candidateLootable.pointer != static_cast<uint32_t>(-1)) {
+        finalCandidate = candidateLootable;
+    }
+    else if (candidateGameObject.pointer != static_cast<uint32_t>(-1)) {
+        finalCandidate = candidateGameObject;
+    }
+    else if (candidateSkinnable.pointer != static_cast<uint32_t>(-1)) {
+        finalCandidate = candidateSkinnable;
+    }
+    else if (candidateAliveUnit.pointer != static_cast<uint32_t>(-1)) {
+        finalCandidate = candidateAliveUnit;
+    }
 
-    uint64_t candidateGUID = *reinterpret_cast<uint64_t*>(candidate + 0x30);
-    int candidatePointer = Game::GetObjectPointer(candidateGUID);
-    uint32_t candidateType = *reinterpret_cast<uint32_t*>(candidatePointer + 0x14);
+    if (finalCandidate.pointer == static_cast<uint32_t>(-1)) return 0;
 
     int autoloot = Lua::ToNumber(L, 1);
 
-    if (candidateType == ObjectType::UNIT)
+    if (finalCandidate.type == ObjectType::UNIT)
     {
-        Game::SetTarget(candidateGUID);
-        Game::Interact(candidate, autoloot, Offsets::FUN_RIGHT_CLICK_UNIT);
+        Game::SetTarget(finalCandidate.guid);
+        Game::Interact(finalCandidate.pointer, autoloot, Offsets::FUN_RIGHT_CLICK_UNIT);
     }
-    else
+    else if (finalCandidate.type == ObjectType::GAMEOBJECT)
     {
-        Game::Interact(candidatePointer, autoloot, Offsets::FUN_RIGHT_CLICK_OBJECT);
+        Game::Interact(finalCandidate.pointer, autoloot, Offsets::FUN_RIGHT_CLICK_OBJECT);
     }
 
     return 1;
