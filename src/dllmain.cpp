@@ -29,14 +29,14 @@ static uint32_t InteractNearest(void *L) {
     return 0;
   }
 
-  uint32_t objects = ReadMemory<uint32_t>(Offsets::VISIBLE_OBJECTS);
-  uint32_t currentObject = ReadMemory<uint32_t>(objects + 0xAC);
+  uintptr_t objects = ReadMemory<uintptr_t>(Offsets::VISIBLE_OBJECTS);
+  uintptr_t currentObject = ReadMemory<uintptr_t>(objects + 0xAC);
 
   // Create separate candidate storage for each of the four priority tiers
   struct CandidateInfo {
     uint64_t guid;
-    uint32_t pointer; // For units and corpses, stores currentObject; for game
-                      // objects, stores the GetObjectPointer result
+    uintptr_t pointer; // For units and corpses, stores currentObject; for game
+                       // objects, stores the GetObjectPointer result
     ObjectType type;
   };
 
@@ -51,24 +51,24 @@ static uint32_t InteractNearest(void *L) {
   float bestDistanceAliveUnit = 1000.0f;
 
   uint64_t playerGUID = ReadMemory<uint64_t>(objects + 0xC0);
-  uint32_t player = Game::GetObjectPointer(playerGUID);
+  uintptr_t player = Game::GetObjectPointer(playerGUID);
 
   C3Vector pPos = Game::GetUnitPosition(player);
   C3Vector oPos;
 
   while (currentObject != 0 && (currentObject & 1) == 0) {
     uint64_t guid = ReadMemory<uint64_t>(currentObject + 0x30);
-    uint32_t pointer = Game::GetObjectPointer(guid);
+    uintptr_t pointer = Game::GetObjectPointer(guid);
     ObjectType type = ReadMemory<ObjectType>(pointer + 0x14);
 
     uint64_t summonedByGUID =
-        ReadMemory<uint64_t>(ReadMemory<uint32_t>(pointer + 0x8) + 0x30);
-    uint32_t summonedBy = Game::GetObjectPointer(summonedByGUID);
+        ReadMemory<uint64_t>(ReadMemory<uintptr_t>(pointer + 0x8) + 0x30);
+    uintptr_t summonedBy = Game::GetObjectPointer(summonedByGUID);
 
     if (summonedByGUID != 0 && summonedBy != 0) {
       ObjectType owner = ReadMemory<ObjectType>(summonedBy + 0x14);
       if (owner == ObjectType::PLAYER) {
-        currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
+        currentObject = ReadMemory<uintptr_t>(currentObject + 0x3C);
         continue;
       }
     }
@@ -78,7 +78,7 @@ static uint32_t InteractNearest(void *L) {
     } else if (type == ObjectType::GAMEOBJECT) {
       oPos = Game::GetObjectPosition(currentObject);
     } else {
-      currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
+      currentObject = ReadMemory<uintptr_t>(currentObject + 0x3C);
       continue;
     }
 
@@ -117,7 +117,7 @@ static uint32_t InteractNearest(void *L) {
       }
     }
 
-    currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
+    currentObject = ReadMemory<uintptr_t>(currentObject + 0x3C);
   }
 
   // Select the final candidate in priority order

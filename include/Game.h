@@ -16,7 +16,7 @@ enum class ObjectType : uint32_t {
   CORPSE
 };
 
-typedef void(__thiscall *FUN_ONRIGHTCLICK)(uint32_t pointer, int autoloot);
+typedef void(__thiscall *FUN_ONRIGHTCLICK)(uintptr_t pointer, int autoloot);
 typedef void(__fastcall *FrameScript_RegisterFunction)(const char *, uintptr_t);
 typedef void(__cdecl *lua_error)(void *, const char *);
 typedef bool(__fastcall *lua_isnumber)(void *, int);
@@ -32,18 +32,18 @@ namespace Game {
 auto const RegisterFunction =
     (FrameScript_RegisterFunction)Offsets::FUN_REGISTER_LUA_FUNCTION;
 
-uint32_t __stdcall GetObjectPointer(uint64_t guid);
+uintptr_t __stdcall GetObjectPointer(uint64_t guid);
 
-C3Vector GetObjectPosition(uint32_t pointer);
+C3Vector GetObjectPosition(uintptr_t pointer);
 
-int GetUnitHealth(uint32_t unit);
+int GetUnitHealth(uintptr_t unit);
 
-C3Vector GetUnitPosition(uint32_t unit);
+C3Vector GetUnitPosition(uintptr_t unit);
 
-void Interact(uint32_t pointer, int autoloot, uintptr_t fun_ptr);
+void Interact(uintptr_t pointer, int autoloot, uintptr_t fun_ptr);
 
-bool IsUnitLootable(uint32_t unit);
-bool IsUnitSkinnable(uint32_t unit);
+bool IsUnitLootable(uintptr_t unit);
+bool IsUnitSkinnable(uintptr_t unit);
 
 void SetTarget(uint64_t guid);
 
