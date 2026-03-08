@@ -4,6 +4,7 @@
 #include "MinHook.h"
 
 #include <cmath>
+#include <optional>
 #include <set>
 
 std::set<int> blacklist = {179830, 179831, 179785, 179786};
@@ -39,14 +40,10 @@ static uint32_t InteractNearest(void *L) {
     uint32_t type;
   };
 
-  CandidateInfo candidateLootable = {0, static_cast<uint32_t>(-1),
-                                     ObjectType::NONE};
-  CandidateInfo candidateGameObject = {0, static_cast<uint32_t>(-1),
-                                       ObjectType::NONE};
-  CandidateInfo candidateSkinnable = {0, static_cast<uint32_t>(-1),
-                                      ObjectType::NONE};
-  CandidateInfo candidateAliveUnit = {0, static_cast<uint32_t>(-1),
-                                      ObjectType::NONE};
+  std::optional<CandidateInfo> candidateLootable;
+  std::optional<CandidateInfo> candidateGameObject;
+  std::optional<CandidateInfo> candidateSkinnable;
+  std::optional<CandidateInfo> candidateAliveUnit;
 
   float bestDistanceLootable = 1000.0f;
   float bestDistanceGameObject = 1000.0f;
@@ -124,29 +121,23 @@ static uint32_t InteractNearest(void *L) {
   }
 
   // Select the final candidate in priority order
-  CandidateInfo finalCandidate = {0, static_cast<uint32_t>(-1),
-                                  ObjectType::NONE};
-  if (candidateLootable.pointer != static_cast<uint32_t>(-1)) {
-    finalCandidate = candidateLootable;
-  } else if (candidateGameObject.pointer != static_cast<uint32_t>(-1)) {
-    finalCandidate = candidateGameObject;
-  } else if (candidateSkinnable.pointer != static_cast<uint32_t>(-1)) {
-    finalCandidate = candidateSkinnable;
-  } else if (candidateAliveUnit.pointer != static_cast<uint32_t>(-1)) {
-    finalCandidate = candidateAliveUnit;
-  }
+  const std::optional<CandidateInfo> finalCandidate =
+      candidateLootable     ? candidateLootable
+      : candidateGameObject ? candidateGameObject
+      : candidateSkinnable  ? candidateSkinnable
+                            : candidateAliveUnit;
 
-  if (finalCandidate.pointer == static_cast<uint32_t>(-1))
+  if (!finalCandidate)
     return 0;
 
   int autoloot = Lua::ToNumber(L, 1);
 
-  if (finalCandidate.type == ObjectType::UNIT) {
-    Game::SetTarget(finalCandidate.guid);
-    Game::Interact(finalCandidate.pointer, autoloot,
+  if (finalCandidate->type == ObjectType::UNIT) {
+    Game::SetTarget(finalCandidate->guid);
+    Game::Interact(finalCandidate->pointer, autoloot,
                    Offsets::FUN_RIGHT_CLICK_UNIT);
-  } else if (finalCandidate.type == ObjectType::GAMEOBJECT) {
-    Game::Interact(finalCandidate.pointer, autoloot,
+  } else if (finalCandidate->type == ObjectType::GAMEOBJECT) {
+    Game::Interact(finalCandidate->pointer, autoloot,
                    Offsets::FUN_RIGHT_CLICK_OBJECT);
   }
 
