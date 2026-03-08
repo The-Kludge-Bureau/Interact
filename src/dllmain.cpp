@@ -30,11 +30,11 @@ static uint32_t InteractNearest(void *L) {
   uint32_t objects = *reinterpret_cast<uint32_t *>(Offsets::VISIBLE_OBJECTS);
   uint32_t currentObject = *reinterpret_cast<uint32_t *>(objects + 0xAC);
 
-  // 修改：为四个优先级创建独立的候选存储
+  // Create separate candidate storage for each of the four priority tiers
   struct CandidateInfo {
     uint64_t guid;
-    uint32_t
-        pointer; // 对于单位和尸体，存currentObject；对于游戏物体，存GetObjectPointer结果
+    uint32_t pointer; // For units and corpses, stores currentObject; for game
+                      // objects, stores the GetObjectPointer result
     uint32_t type;
   };
 
@@ -92,12 +92,12 @@ static uint32_t InteractNearest(void *L) {
           bool isLootable = Game::IsUnitLootable(currentObject);
           bool isSkinnable = Game::IsUnitSkinnable(currentObject);
 
-          // 修改：第一优先级 - 可拾取的尸体
+          // Priority 1 - Lootable corpse
           if (isLootable && distance < bestDistanceLootable) {
             bestDistanceLootable = distance;
             candidateLootable = {guid, currentObject, type};
           }
-          // 修改：第三优先级 - 仅可剥皮但不可拾取的尸体
+          // Priority 3 - Skinnable-only corpse (not lootable)
           else if (!isLootable && isSkinnable &&
                    distance < bestDistanceSkinnable) {
             bestDistanceSkinnable = distance;
@@ -105,14 +105,14 @@ static uint32_t InteractNearest(void *L) {
           }
         } else if (Game::GetUnitHealth(currentObject) > 0 &&
                    distance < bestDistanceAliveUnit) {
-          // 修改：第四优先级 - 活着的单位
+          // Priority 4 - Alive unit
           bestDistanceAliveUnit = distance;
           candidateAliveUnit = {guid, currentObject, type};
         }
       } else if (type == ObjectType::GAMEOBJECT) {
         uint32_t id = *reinterpret_cast<uint32_t *>(pointer + 0x294);
         if (!blacklist.count(id) && distance < bestDistanceGameObject) {
-          // 修改：第二优先级 - 游戏物体
+          // Priority 2 - Game object
           bestDistanceGameObject = distance;
           candidateGameObject = {guid, pointer, type};
         }
@@ -122,7 +122,7 @@ static uint32_t InteractNearest(void *L) {
     currentObject = *reinterpret_cast<uint32_t *>(currentObject + 0x3C);
   }
 
-  // 修改：按优先级顺序选择最终候选
+  // Select the final candidate in priority order
   CandidateInfo finalCandidate = {0, static_cast<uint32_t>(-1),
                                   ObjectType::NONE};
   if (candidateLootable.pointer != static_cast<uint32_t>(-1)) {
