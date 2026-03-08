@@ -124,8 +124,10 @@ static uint32_t InteractNearest(void *L) {
         }
       } else if (type == ObjectType::GAMEOBJECT) {
         uint32_t id = ReadMemory<uint32_t>(pointer + Offsets::GO_ENTRY);
+        uintptr_t descriptor =
+            ReadMemory<uintptr_t>(pointer + Offsets::GO_DESCRIPTOR);
         GameObjectSubtype subtype =
-            ReadMemory<GameObjectSubtype>(pointer + Offsets::GO_SUBTYPE);
+            ReadMemory<GameObjectSubtype>(descriptor + Offsets::GO_SUBTYPE);
         if (!blacklist.count(id) && interactableSubtypes.count(subtype))
           // Priority 2 - Game object
           gameObjects.push_back({distance, {guid, pointer, type}});

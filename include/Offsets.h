@@ -20,8 +20,9 @@ namespace Offsets {
   constexpr uintptr_t LUA_TONUMBER                = 0x6F3620;
   // Misc
   constexpr uintptr_t VISIBLE_OBJECTS             = 0xB41414;
-  // Game object fields (relative to game object pointer)
+  // Game object fields
+  constexpr uintptr_t GO_DESCRIPTOR               = 0x8;
   constexpr uintptr_t GO_ENTRY                    = 0x294;
-  constexpr uintptr_t GO_SUBTYPE                  = 0x298;
+  constexpr uintptr_t GO_SUBTYPE                  = 0x54;
 /* clang-format on */
 } // namespace Offsets
