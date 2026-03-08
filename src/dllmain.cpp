@@ -9,8 +9,15 @@
 #include <unordered_set>
 #include <vector>
 
-static const std::unordered_set<uint32_t> blacklist = {179830, 179831, 179785,
-                                                       179786};
+// Warsong Gulch flag objects — excluded from interaction to avoid
+// accidentally triggering PvP flag grabs. Includes orphaned duplicates
+// that exist in the world without attached data.
+static const std::unordered_set<uint32_t> pvpFlagObjects = {
+    179785,
+    179786,
+    179830, // Silverwing Flag (WSG)
+    179831, // Warsong Flag (WSG)
+};
 
 struct GameObjectSubtypeHasher {
   size_t operator()(GameObjectSubtype s) const {
@@ -128,7 +135,7 @@ static uint32_t InteractNearest(void *L) {
             ReadMemory<uintptr_t>(pointer + Offsets::GO_DESCRIPTOR);
         GameObjectSubtype subtype =
             ReadMemory<GameObjectSubtype>(descriptor + Offsets::GO_SUBTYPE);
-        if (!blacklist.count(id) && interactableSubtypes.count(subtype))
+        if (!pvpFlagObjects.count(id) && interactableSubtypes.count(subtype))
           // Priority 2 - Game object
           gameObjects.push_back({distance, {guid, pointer, type}});
       }
