@@ -16,17 +16,19 @@ enum class ObjectType : uint32_t {
   CORPSE
 };
 
-typedef void(__thiscall *FUN_ONRIGHTCLICK)(uintptr_t pointer, int autoloot);
-typedef void(__fastcall *FrameScript_RegisterFunction)(const char *, uintptr_t);
-typedef void(__cdecl *lua_error)(void *, const char *);
-typedef bool(__fastcall *lua_isnumber)(void *, int);
-typedef double(__fastcall *lua_tonumber)(void *, int);
+/* clang-format off */
+using FUN_ONRIGHTCLICK             = void(__thiscall *)(uintptr_t pointer, int autoloot);
+using FrameScript_RegisterFunction = void(__fastcall *)(const char *, uintptr_t);
+using lua_error                    = void(__cdecl *)(void *, const char *);
+using lua_isnumber                 = bool(__fastcall *)(void *, int);
+using lua_tonumber                 = double(__fastcall *)(void *, int);
+/* clang-format on */
 
-typedef struct {
+struct C3Vector {
   float y;
   float x;
   float z;
-} C3Vector;
+};
 
 namespace Game {
 auto const RegisterFunction =
