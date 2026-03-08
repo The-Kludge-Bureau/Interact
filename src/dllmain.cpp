@@ -131,7 +131,7 @@ static uint32_t InteractNearest(void *L) {
   if (!finalCandidate)
     return 0;
 
-  int autoloot = Lua::ToNumber(L, 1);
+  int autoloot = static_cast<int>(Lua::ToNumber(L, 1));
 
   if (finalCandidate->type == ObjectType::UNIT) {
     Game::SetTarget(finalCandidate->guid);
