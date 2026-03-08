@@ -24,9 +24,10 @@ using lua_isnumber                 = bool(__fastcall *)(void *, int);
 using lua_tonumber                 = double(__fastcall *)(void *, int);
 /* clang-format on */
 
+// WoW stores positions in memory as X, Y, Z. Field order matches this layout.
 struct C3Vector {
-  float y;
   float x;
+  float y;
   float z;
 };
 
