@@ -37,7 +37,7 @@ static uint32_t InteractNearest(void *L) {
     uint64_t guid;
     uint32_t pointer; // For units and corpses, stores currentObject; for game
                       // objects, stores the GetObjectPointer result
-    uint32_t type;
+    ObjectType type;
   };
 
   std::optional<CandidateInfo> candidateLootable;
@@ -59,14 +59,14 @@ static uint32_t InteractNearest(void *L) {
   while (currentObject != 0 && (currentObject & 1) == 0) {
     uint64_t guid = ReadMemory<uint64_t>(currentObject + 0x30);
     uint32_t pointer = Game::GetObjectPointer(guid);
-    uint32_t type = ReadMemory<uint32_t>(pointer + 0x14);
+    ObjectType type = ReadMemory<ObjectType>(pointer + 0x14);
 
     uint64_t summonedByGUID =
         ReadMemory<uint64_t>(ReadMemory<uint32_t>(pointer + 0x8) + 0x30);
     uint32_t summonedBy = Game::GetObjectPointer(summonedByGUID);
 
     if (summonedByGUID != 0 && summonedBy != 0) {
-      uint32_t owner = ReadMemory<uint32_t>(summonedBy + 0x14);
+      ObjectType owner = ReadMemory<ObjectType>(summonedBy + 0x14);
       if (owner == ObjectType::PLAYER) {
         currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
         continue;

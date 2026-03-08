@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-enum ObjectType {
+enum class ObjectType : uint32_t {
   NONE,
   ITEM,
   CONTAINER,
