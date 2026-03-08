@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Memory.h"
 #include "Offsets.h"
 
 #include <cstdint>
@@ -39,14 +40,14 @@ int GetUnitHealth(uint32_t unit);
 
 C3Vector GetUnitPosition(uint32_t unit);
 
-void Interact(uint32_t pointer, int autoloot, int fun_ptr);
+void Interact(uint32_t pointer, int autoloot, uintptr_t fun_ptr);
 
 bool IsUnitLootable(uint32_t unit);
 bool IsUnitSkinnable(uint32_t unit);
 
 void SetTarget(uint64_t guid);
 
-inline bool IsInWorld() { return *(char *)Offsets::FUN_IS_IN_WORLD; }
+inline bool IsInWorld() { return ReadMemory<char>(Offsets::FUN_IS_IN_WORLD); }
 } // namespace Game
 
 namespace Lua {

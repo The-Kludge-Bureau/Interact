@@ -1,5 +1,6 @@
 ﻿// dllmain.cpp : Defines the entry point for the DLL application.
 #include "Game.h"
+#include "Memory.h"
 #include "MinHook.h"
 
 #include <cmath>
@@ -10,7 +11,7 @@ std::set<int> blacklist = {179830, 179831, 179785, 179786};
 typedef void(__stdcall *LoadScriptFunctions_t)();
 LoadScriptFunctions_t LoadScriptFunctions_o = nullptr;
 
-static float distance3D(C3Vector v1, C3Vector v2) {
+static float distance3D(const C3Vector &v1, const C3Vector &v2) {
   float dx = v2.x - v1.x;
   float dy = v2.y - v1.y;
   float dz = v2.z - v1.z;
@@ -27,8 +28,8 @@ static uint32_t InteractNearest(void *L) {
     return 0;
   }
 
-  uint32_t objects = *reinterpret_cast<uint32_t *>(Offsets::VISIBLE_OBJECTS);
-  uint32_t currentObject = *reinterpret_cast<uint32_t *>(objects + 0xAC);
+  uint32_t objects = ReadMemory<uint32_t>(Offsets::VISIBLE_OBJECTS);
+  uint32_t currentObject = ReadMemory<uint32_t>(objects + 0xAC);
 
   // Create separate candidate storage for each of the four priority tiers
   struct CandidateInfo {
@@ -52,25 +53,25 @@ static uint32_t InteractNearest(void *L) {
   float bestDistanceSkinnable = 1000.0f;
   float bestDistanceAliveUnit = 1000.0f;
 
-  uint64_t playerGUID = *reinterpret_cast<uint64_t *>(objects + 0xC0);
+  uint64_t playerGUID = ReadMemory<uint64_t>(objects + 0xC0);
   uint32_t player = Game::GetObjectPointer(playerGUID);
 
   C3Vector pPos = Game::GetUnitPosition(player);
   C3Vector oPos;
 
   while (currentObject != 0 && (currentObject & 1) == 0) {
-    uint64_t guid = *reinterpret_cast<uint64_t *>(currentObject + 0x30);
+    uint64_t guid = ReadMemory<uint64_t>(currentObject + 0x30);
     uint32_t pointer = Game::GetObjectPointer(guid);
-    uint32_t type = *reinterpret_cast<uint32_t *>(pointer + 0x14);
+    uint32_t type = ReadMemory<uint32_t>(pointer + 0x14);
 
-    uint64_t summonedByGUID = *reinterpret_cast<uint64_t *>(
-        *reinterpret_cast<uint32_t *>(pointer + 0x8) + 0x30);
+    uint64_t summonedByGUID =
+        ReadMemory<uint64_t>(ReadMemory<uint32_t>(pointer + 0x8) + 0x30);
     uint32_t summonedBy = Game::GetObjectPointer(summonedByGUID);
 
     if (summonedByGUID != 0 && summonedBy != 0) {
-      uint32_t owner = *reinterpret_cast<uint32_t *>(summonedBy + 0x14);
+      uint32_t owner = ReadMemory<uint32_t>(summonedBy + 0x14);
       if (owner == ObjectType::PLAYER) {
-        currentObject = *reinterpret_cast<uint32_t *>(currentObject + 0x3C);
+        currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
         continue;
       }
     }
@@ -80,7 +81,7 @@ static uint32_t InteractNearest(void *L) {
     } else if (type == ObjectType::GAMEOBJECT) {
       oPos = Game::GetObjectPosition(currentObject);
     } else {
-      currentObject = *reinterpret_cast<uint32_t *>(currentObject + 0x3C);
+      currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
       continue;
     }
 
@@ -110,7 +111,7 @@ static uint32_t InteractNearest(void *L) {
           candidateAliveUnit = {guid, currentObject, type};
         }
       } else if (type == ObjectType::GAMEOBJECT) {
-        uint32_t id = *reinterpret_cast<uint32_t *>(pointer + 0x294);
+        uint32_t id = ReadMemory<uint32_t>(pointer + 0x294);
         if (!blacklist.count(id) && distance < bestDistanceGameObject) {
           // Priority 2 - Game object
           bestDistanceGameObject = distance;
@@ -119,7 +120,7 @@ static uint32_t InteractNearest(void *L) {
       }
     }
 
-    currentObject = *reinterpret_cast<uint32_t *>(currentObject + 0x3C);
+    currentObject = ReadMemory<uint32_t>(currentObject + 0x3C);
   }
 
   // Select the final candidate in priority order
