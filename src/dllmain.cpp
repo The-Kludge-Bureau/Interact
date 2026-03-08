@@ -3,12 +3,15 @@
 #include "Memory.h"
 #include "MinHook.h"
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <unordered_set>
+#include <vector>
 
 static const std::unordered_set<uint32_t> blacklist = {179830, 179831, 179785,
                                                        179786};
+static std::unordered_set<uint64_t> triedGuids;
 
 typedef void(__stdcall *LoadScriptFunctions_t)();
 LoadScriptFunctions_t LoadScriptFunctions_o = nullptr;
@@ -33,7 +36,6 @@ static uint32_t InteractNearest(void *L) {
   uintptr_t objects = ReadMemory<uintptr_t>(Offsets::VISIBLE_OBJECTS);
   uintptr_t currentObject = ReadMemory<uintptr_t>(objects + 0xAC);
 
-  // Create separate candidate storage for each of the four priority tiers
   struct CandidateInfo {
     uint64_t guid;
     uintptr_t pointer; // For units and corpses, stores currentObject; for game
@@ -41,15 +43,13 @@ static uint32_t InteractNearest(void *L) {
     ObjectType type;
   };
 
-  std::optional<CandidateInfo> candidateLootable;
-  std::optional<CandidateInfo> candidateGameObject;
-  std::optional<CandidateInfo> candidateSkinnable;
-  std::optional<CandidateInfo> candidateAliveUnit;
+  using DistancedCandidate = std::pair<float, CandidateInfo>;
 
-  float bestDistanceLootable = 1000.0f;
-  float bestDistanceGameObject = 1000.0f;
-  float bestDistanceSkinnable = 1000.0f;
-  float bestDistanceAliveUnit = 1000.0f;
+  // Collect all candidates into per-tier vectors for sorting
+  std::vector<DistancedCandidate> lootables;
+  std::vector<DistancedCandidate> gameObjects;
+  std::vector<DistancedCandidate> skinnables;
+  std::vector<DistancedCandidate> aliveUnits;
 
   uint64_t playerGUID = ReadMemory<uint64_t>(objects + 0xC0);
   uintptr_t player = Game::GetObjectPointer(playerGUID);
@@ -84,7 +84,7 @@ static uint32_t InteractNearest(void *L) {
     }
 
     float distance = distance3D(oPos, pPos);
-    if (distance <= 5.0) {
+    if (distance <= 5.0f) {
       if (type == ObjectType::UNIT) {
         bool isDead = Game::GetUnitHealth(currentObject) == 0;
         if (isDead) {
@@ -92,54 +92,86 @@ static uint32_t InteractNearest(void *L) {
           bool isSkinnable = Game::IsUnitSkinnable(currentObject);
 
           // Priority 1 - Lootable corpse
-          if (isLootable && distance < bestDistanceLootable) {
-            bestDistanceLootable = distance;
-            candidateLootable = {guid, currentObject, type};
-          }
+          if (isLootable)
+            lootables.push_back({distance, {guid, currentObject, type}});
           // Priority 3 - Skinnable-only corpse (not lootable)
-          else if (!isLootable && isSkinnable &&
-                   distance < bestDistanceSkinnable) {
-            bestDistanceSkinnable = distance;
-            candidateSkinnable = {guid, currentObject, type};
-          }
-        } else if (Game::GetUnitHealth(currentObject) > 0 &&
-                   distance < bestDistanceAliveUnit) {
+          else if (isSkinnable)
+            skinnables.push_back({distance, {guid, currentObject, type}});
+        } else if (Game::GetUnitHealth(currentObject) > 0) {
           // Priority 4 - Alive unit
-          bestDistanceAliveUnit = distance;
-          candidateAliveUnit = {guid, currentObject, type};
+          aliveUnits.push_back({distance, {guid, currentObject, type}});
         }
       } else if (type == ObjectType::GAMEOBJECT) {
         uint32_t id = ReadMemory<uint32_t>(pointer + 0x294);
-        if (!blacklist.count(id) && distance < bestDistanceGameObject) {
+        if (!blacklist.count(id))
           // Priority 2 - Game object
-          bestDistanceGameObject = distance;
-          candidateGameObject = {guid, pointer, type};
-        }
+          gameObjects.push_back({distance, {guid, pointer, type}});
       }
     }
 
     currentObject = ReadMemory<uintptr_t>(currentObject + 0x3C);
   }
 
-  // Select the final candidate in priority order
-  const std::optional<CandidateInfo> finalCandidate =
-      candidateLootable     ? candidateLootable
-      : candidateGameObject ? candidateGameObject
-      : candidateSkinnable  ? candidateSkinnable
-                            : candidateAliveUnit;
+  // Sort each tier by distance, nearest first
+  auto byDistance = [](const DistancedCandidate &a,
+                       const DistancedCandidate &b) {
+    return a.first < b.first;
+  };
+  std::sort(lootables.begin(), lootables.end(), byDistance);
+  std::sort(gameObjects.begin(), gameObjects.end(), byDistance);
+  std::sort(skinnables.begin(), skinnables.end(), byDistance);
+  std::sort(aliveUnits.begin(), aliveUnits.end(), byDistance);
 
-  if (!finalCandidate)
+  // Flatten into a single priority-ordered list
+  std::vector<CandidateInfo> candidates;
+  for (auto &[dist, info] : lootables)
+    candidates.push_back(info);
+  for (auto &[dist, info] : gameObjects)
+    candidates.push_back(info);
+  for (auto &[dist, info] : skinnables)
+    candidates.push_back(info);
+  for (auto &[dist, info] : aliveUnits)
+    candidates.push_back(info);
+
+  if (candidates.empty())
     return 0;
+
+  // If none of the current candidates were previously tried, the player has
+  // moved away from the last batch — reset the cycle
+  bool anyOverlap = false;
+  for (const auto &c : candidates) {
+    if (triedGuids.count(c.guid)) {
+      anyOverlap = true;
+      break;
+    }
+  }
+  if (!anyOverlap)
+    triedGuids.clear();
+
+  // Find the first candidate not yet tried this cycle
+  const CandidateInfo *target = nullptr;
+  for (const auto &c : candidates) {
+    if (!triedGuids.count(c.guid)) {
+      target = &c;
+      break;
+    }
+  }
+
+  // All candidates exhausted — reset and restart from the top of the list
+  if (!target) {
+    triedGuids.clear();
+    target = &candidates.front();
+  }
+
+  triedGuids.insert(target->guid);
 
   int autoloot = static_cast<int>(Lua::ToNumber(L, 1));
 
-  if (finalCandidate->type == ObjectType::UNIT) {
-    Game::SetTarget(finalCandidate->guid);
-    Game::Interact(finalCandidate->pointer, autoloot,
-                   Offsets::FUN_RIGHT_CLICK_UNIT);
-  } else if (finalCandidate->type == ObjectType::GAMEOBJECT) {
-    Game::Interact(finalCandidate->pointer, autoloot,
-                   Offsets::FUN_RIGHT_CLICK_OBJECT);
+  if (target->type == ObjectType::UNIT) {
+    Game::SetTarget(target->guid);
+    Game::Interact(target->pointer, autoloot, Offsets::FUN_RIGHT_CLICK_UNIT);
+  } else if (target->type == ObjectType::GAMEOBJECT) {
+    Game::Interact(target->pointer, autoloot, Offsets::FUN_RIGHT_CLICK_OBJECT);
   }
 
   return 1;
