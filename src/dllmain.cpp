@@ -5,9 +5,10 @@
 
 #include <cmath>
 #include <optional>
-#include <set>
+#include <unordered_set>
 
-std::set<int> blacklist = {179830, 179831, 179785, 179786};
+static const std::unordered_set<uint32_t> blacklist = {179830, 179831, 179785,
+                                                       179786};
 
 typedef void(__stdcall *LoadScriptFunctions_t)();
 LoadScriptFunctions_t LoadScriptFunctions_o = nullptr;
