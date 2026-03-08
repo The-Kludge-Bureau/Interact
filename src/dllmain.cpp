@@ -107,8 +107,8 @@ static uint32_t InteractNearest(void *L) {
     float distance = distance3D(oPos, pPos);
     if (distance <= 5.0f) {
       if (type == ObjectType::UNIT) {
-        bool isDead = Game::GetUnitHealth(currentObject) == 0;
-        if (isDead) {
+        int health = Game::GetUnitHealth(currentObject);
+        if (health == 0) {
           bool isLootable = Game::IsUnitLootable(currentObject);
           bool isSkinnable = Game::IsUnitSkinnable(currentObject);
 
@@ -118,7 +118,7 @@ static uint32_t InteractNearest(void *L) {
           // Priority 3 - Skinnable-only corpse (not lootable)
           else if (isSkinnable)
             skinnables.push_back({distance, {guid, currentObject, type}});
-        } else if (Game::GetUnitHealth(currentObject) > 0) {
+        } else if (health > 0) {
           // Priority 4 - Alive unit
           aliveUnits.push_back({distance, {guid, currentObject, type}});
         }
