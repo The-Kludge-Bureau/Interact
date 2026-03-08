@@ -18,7 +18,7 @@ static float distance3D(const C3Vector &v1, const C3Vector &v2) {
   float dy = v2.y - v1.y;
   float dz = v2.z - v1.z;
 
-  return sqrt(dx * dx + dy * dy + dz * dz);
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 static uint32_t InteractNearest(void *L) {
