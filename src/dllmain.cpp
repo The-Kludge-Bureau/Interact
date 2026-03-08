@@ -11,6 +11,27 @@
 
 static const std::unordered_set<uint32_t> blacklist = {179830, 179831, 179785,
                                                        179786};
+
+struct GameObjectSubtypeHasher {
+  size_t operator()(GameObjectSubtype s) const {
+    return std::hash<uint32_t>{}(static_cast<uint32_t>(s));
+  }
+};
+
+// Subtypes where right-clicking the object serves a direct purpose.
+// Excludes proximity-only objects (SPELL_FOCUS), decorative objects (GENERIC),
+// and objects the player cannot meaningfully interact with (CHAIR, TEXT, etc.)
+static const std::unordered_set<GameObjectSubtype, GameObjectSubtypeHasher>
+    interactableSubtypes = {
+        GameObjectSubtype::DOOR,        GameObjectSubtype::BUTTON,
+        GameObjectSubtype::QUESTGIVER,  GameObjectSubtype::CHEST,
+        GameObjectSubtype::BINDER,      GameObjectSubtype::GOOBER,
+        GameObjectSubtype::FISHINGNODE, GameObjectSubtype::RITUAL,
+        GameObjectSubtype::MAILBOX,     GameObjectSubtype::AUCTIONHOUSE,
+        GameObjectSubtype::SPELLCASTER, GameObjectSubtype::MEETINGSTONE,
+        GameObjectSubtype::FLAGSTAND,   GameObjectSubtype::FISHINGHOLE,
+        GameObjectSubtype::FLAGDROP,
+};
 static std::unordered_set<uint64_t> triedGuids;
 
 typedef void(__stdcall *LoadScriptFunctions_t)();
@@ -102,8 +123,10 @@ static uint32_t InteractNearest(void *L) {
           aliveUnits.push_back({distance, {guid, currentObject, type}});
         }
       } else if (type == ObjectType::GAMEOBJECT) {
-        uint32_t id = ReadMemory<uint32_t>(pointer + 0x294);
-        if (!blacklist.count(id))
+        uint32_t id = ReadMemory<uint32_t>(pointer + Offsets::GO_ENTRY);
+        GameObjectSubtype subtype =
+            ReadMemory<GameObjectSubtype>(pointer + Offsets::GO_SUBTYPE);
+        if (!blacklist.count(id) && interactableSubtypes.count(subtype))
           // Priority 2 - Game object
           gameObjects.push_back({distance, {guid, pointer, type}});
       }
