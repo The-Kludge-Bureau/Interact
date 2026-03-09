@@ -15,8 +15,8 @@
 static const std::unordered_set<uint32_t> pvpFlagObjects = {
     179785,
     179786,
-    179830, // Silverwing Flag (WSG)
-    179831, // Warsong Flag (WSG)
+    179830,
+    179831,
 };
 
 struct GameObjectSubtypeHasher {
